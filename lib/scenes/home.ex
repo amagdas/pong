@@ -65,6 +65,7 @@ defmodule Breakout.Scene.Home do
       state
       |> compute_ball_next_position()
       |> hurt?()
+      |> paddle_hit?(state.ball)
       |> compute_paddle_next_position()
       |> render_next_frame()
 
@@ -136,10 +137,6 @@ defmodule Breakout.Scene.Home do
     }
   end
 
-  defp ball_rect(%{x: x, y: y, radius: radius, vx: vx, vy: vy}) do
-    {x - radius, y - radius, radius * 2, radius * 2}
-  end
-
   defp ball_out_of_bounds_x?(%{x: x, radius: radius} = new_ball, prev_ball)
        when x < radius or x > @width - radius do
     %{new_ball | x: prev_ball.x, vx: new_ball.vx * -1}
@@ -173,5 +170,29 @@ defmodule Breakout.Scene.Home do
       _ ->
         paddle
     end
+  end
+
+  defp paddle_hit?(%{ball: ball, paddle: paddle} = state, prev_ball) do
+    case ball
+         |> ball_rect()
+         |> intersects?(paddle) do
+      true ->
+        new_ball = %{ball | y: prev_ball.y, vy: ball.vy * -1}
+        %{state | ball: new_ball}
+
+      _ ->
+        state
+    end
+  end
+
+  defp ball_rect(%{x: x, y: y, radius: radius, vx: vx, vy: vy}) do
+    %{x: x - radius, y: y - radius, width: radius * 2, height: radius * 2}
+  end
+
+  defp intersects?(rect1, rect2) do
+    rect1.x < rect2.x + rect2.width and
+      rect1.y < rect2.y + rect2.height and
+      rect1.x + rect1.width > rect2.x and
+      rect1.y + rect1.height > rect2.y
   end
 end
