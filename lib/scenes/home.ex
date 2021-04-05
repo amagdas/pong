@@ -41,7 +41,9 @@ defmodule Breakout.Scene.Home do
       graph: @graph,
       ball: @ball,
       paddle: @paddle,
-      frame_time: timer
+      frame_time: timer,
+      lives: 3,
+      hurt: false
     }
 
     {:ok, state, push: @graph}
@@ -62,6 +64,7 @@ defmodule Breakout.Scene.Home do
     new_state =
       state
       |> compute_ball_next_position()
+      |> hurt?()
       |> compute_paddle_next_position()
       |> render_next_frame()
 
@@ -77,7 +80,7 @@ defmodule Breakout.Scene.Home do
     %{state | ball: new_ball}
   end
 
-  def compute_paddle_next_position(%{paddle: paddle} = state) do
+  def compute_paddle_next_position(%{paddle: paddle, hurt: false} = state) do
     new_paddle =
       cond do
         paddle.moving_left ->
@@ -93,7 +96,11 @@ defmodule Breakout.Scene.Home do
     %{state | paddle: new_paddle}
   end
 
-  defp render_next_frame(state) do
+  def compute_paddle_next_position(state) do
+    state
+  end
+
+  defp render_next_frame(%{hurt: false} = state) do
     graph =
       state.graph
       |> Graph.modify(
@@ -112,6 +119,23 @@ defmodule Breakout.Scene.Home do
     %{state | graph: graph}
   end
 
+  defp render_next_frame(%{hurt: true} = state) do
+    Logger.info("Lost a life!!! #{inspect(state.lives)}")
+
+    state
+    |> reset()
+  end
+
+  defp reset(state) do
+    %{
+      state
+      | graph: @graph,
+        ball: @ball,
+        paddle: @paddle,
+        hurt: false
+    }
+  end
+
   defp ball_rect(%{x: x, y: y, radius: radius, vx: vx, vy: vy}) do
     {x - radius, y - radius, radius * 2, radius * 2}
   end
@@ -124,11 +148,19 @@ defmodule Breakout.Scene.Home do
   defp ball_out_of_bounds_x?(new_ball, _prev_ball), do: new_ball
 
   defp ball_out_of_bounds_y?(%{y: y, radius: radius} = new_ball, prev_ball)
-       when y < radius or y > @height - radius do
+       when y < radius do
     %{new_ball | y: prev_ball.y, vy: new_ball.vy * -1}
   end
 
   defp ball_out_of_bounds_y?(new_ball, _prev_ball), do: new_ball
+
+  defp hurt?(%{ball: %{y: y, radius: radius}, lives: lives} = state)
+       when y > @height - radius do
+    new_lives = lives - 1
+    %{state | hurt: true, lives: new_lives}
+  end
+
+  defp hurt?(state), do: state
 
   defp should_move_paddle(key, paddle) do
     case key do

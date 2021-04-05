@@ -1,4 +1,3 @@
-Readme text goes here
+Pong game in Elixir using Scenic.
 
-
-From template
+To start the game, run `mix deps.get && mix scenic.run`
