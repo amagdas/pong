@@ -21,10 +21,21 @@ defmodule Breakout.Scene.Home do
     moving_left: false
   }
   @frame_ms 16
+  @brick_colors [:red, :blue, :dark_green, :brown, :yellow, :grey, :magenta, :cyan]
+  @brick_width 40
+  @brick_height 15
+  @brick_spacing 3
+  @bricks_left_offset 25
+  @bricks_top_offset 45
+
   @graph Graph.build()
          |> add_specs_to_graph([
            rect_spec({@width, @height}),
            circle_spec(@ball.radius, fill: :red, translate: {@ball.x, @ball.y}, id: :ball),
+           rect_spec({@ball.radius * 2, @ball.radius * 2},
+             translate: {@ball.x - @ball.radius, @ball.y - @ball.radius},
+             id: "ball_rect"
+           ),
            rect_spec({@paddle.width, @paddle.height},
              fill: :white,
              translate: {@paddle.x, @paddle.y},
@@ -35,12 +46,39 @@ defmodule Breakout.Scene.Home do
   def init(_, _opts) do
     {:ok, timer} = :timer.send_interval(@frame_ms, :frame)
 
+    bricks =
+      for row <- 0..7,
+          column <- 0..9,
+          do: %{
+            color: Enum.at(@brick_colors, row),
+            width: @brick_width,
+            height: @brick_height,
+            x: @bricks_left_offset + column * @brick_width + column * @brick_spacing,
+            y: @bricks_top_offset + row * @brick_height + row * @brick_spacing,
+            dead: false,
+            id: "brick_#{row}#{column}"
+          }
+
+    new_graph =
+      @graph
+      |> add_specs_to_graph(
+        bricks
+        |> Enum.map(fn brick ->
+          rect_spec({brick.width, brick.height},
+            fill: brick.color,
+            translate: {brick.x, brick.y},
+            id: brick.id
+          )
+        end)
+      )
+
     state = %{
       width: @width,
       height: @height,
-      graph: @graph,
+      graph: new_graph,
       ball: @ball,
       paddle: @paddle,
+      bricks: bricks,
       frame_time: timer,
       lives: 3,
       hurt: false
@@ -66,6 +104,7 @@ defmodule Breakout.Scene.Home do
       |> compute_ball_next_position()
       |> hurt?()
       |> paddle_hit?(state.ball)
+      |> bricks_hit?()
       |> compute_paddle_next_position()
       |> render_next_frame()
 
@@ -101,12 +140,20 @@ defmodule Breakout.Scene.Home do
     state
   end
 
-  defp render_next_frame(%{hurt: false} = state) do
+  defp render_next_frame(%{hurt: false, bricks: bricks} = state) do
     graph =
       state.graph
       |> Graph.modify(
         :ball,
         &circle(&1, @ball.radius, fill: :red, translate: {state.ball.x, state.ball.y}, id: :ball)
+      )
+      |> Graph.modify(
+        "ball_rect",
+        &rect(&1, {@ball.radius * 2, @ball.radius * 2},
+          translate: {state.ball.x - @ball.radius, state.ball.y - @ball.radius},
+          stroke: {5, :green},
+          id: "ball_rect"
+        )
       )
       |> Graph.modify(
         :paddle,
@@ -116,6 +163,7 @@ defmodule Breakout.Scene.Home do
           id: :paddle
         )
       )
+      |> render_bricks(bricks)
 
     %{state | graph: graph}
   end
@@ -128,13 +176,68 @@ defmodule Breakout.Scene.Home do
   end
 
   defp reset(state) do
+    new_graph =
+      state.graph
+      |> Graph.modify(
+        :ball,
+        &circle(&1, @ball.radius, fill: :red, translate: {@ball.x, @ball.y}, id: :ball)
+      )
+      |> Graph.modify(
+        :paddle,
+        &rect(&1, {@paddle.width, @paddle.height},
+          fill: :white,
+          translate: {@paddle.x, @paddle.y},
+          id: :paddle
+        )
+      )
+
     %{
       state
-      | graph: @graph,
+      | graph: new_graph,
         ball: @ball,
         paddle: @paddle,
         hurt: false
     }
+  end
+
+  defp bricks_hit?(%{bricks: bricks, ball: ball} = state) do
+    new_bricks =
+      bricks
+      |> Enum.filter(&(&1.dead != true))
+      |> Enum.map(fn brick ->
+        case ball
+             |> ball_rect()
+             |> intersects?(brick) do
+          true ->
+            %{brick | dead: true}
+
+          _ ->
+            brick
+        end
+      end)
+
+    %{state | bricks: new_bricks}
+  end
+
+  defp render_bricks(graph, bricks) do
+    bricks
+    |> Enum.reduce(graph, fn brick, acc ->
+      case brick.dead do
+        true ->
+          Graph.delete(graph, brick.id)
+
+        false ->
+          Graph.modify(
+            acc,
+            brick.id,
+            &rect(&1, {brick.width, brick.height},
+              fill: brick.color,
+              translate: {brick.x, brick.y},
+              id: brick.id
+            )
+          )
+      end
+    end)
   end
 
   defp ball_out_of_bounds_x?(%{x: x, radius: radius} = new_ball, prev_ball)
@@ -185,8 +288,8 @@ defmodule Breakout.Scene.Home do
     end
   end
 
-  defp ball_rect(%{x: x, y: y, radius: radius, vx: vx, vy: vy}) do
-    %{x: x - radius, y: y - radius, width: radius * 2, height: radius * 2}
+  defp ball_rect(%{x: x, y: y, radius: radius, vx: _vx, vy: _vy}) do
+    %{x: x - radius, y: y - radius, width: radius * 2 + 2, height: radius * 2 + 2}
   end
 
   defp intersects?(rect1, rect2) do
