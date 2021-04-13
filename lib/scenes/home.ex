@@ -6,11 +6,13 @@ defmodule Breakout.Scene.Home do
   # alias Scenic.ViewPort
 
   import Scenic.Primitives
+  import Utils
   # import Scenic.Components
 
   @width 480
   @height 640
-  @ball %{x: @width / 2, y: @height / 2, radius: 8, vx: 3, vy: 3}
+  @ball_speed 3
+  @ball %{x: @width / 2, y: @height / 2, radius: 8, vx: @ball_speed, vy: @ball_speed}
   @paddle %{
     x: @width / 2 - 40,
     y: @height - 18,
@@ -20,7 +22,7 @@ defmodule Breakout.Scene.Home do
     moving_right: false,
     moving_left: false
   }
-  @frame_ms 16
+  @frame_ms 32
   @brick_colors [:red, :blue, :dark_green, :brown, :yellow, :grey, :magenta, :cyan]
   @brick_width 40
   @brick_height 15
@@ -32,10 +34,6 @@ defmodule Breakout.Scene.Home do
          |> add_specs_to_graph([
            rect_spec({@width, @height}),
            circle_spec(@ball.radius, fill: :red, translate: {@ball.x, @ball.y}, id: :ball),
-           rect_spec({@ball.radius * 2, @ball.radius * 2},
-             translate: {@ball.x - @ball.radius, @ball.y - @ball.radius},
-             id: "ball_rect"
-           ),
            rect_spec({@paddle.width, @paddle.height},
              fill: :white,
              translate: {@paddle.x, @paddle.y},
@@ -109,15 +107,6 @@ defmodule Breakout.Scene.Home do
       |> render_next_frame()
 
     {:noreply, new_state, push: new_state.graph}
-  end
-
-  defp compute_ball_next_position(%{ball: ball} = state) do
-    new_ball =
-      %{ball | x: ball.x + ball.vx, y: ball.y + ball.vy}
-      |> ball_out_of_bounds_x?(ball)
-      |> ball_out_of_bounds_y?(ball)
-
-    %{state | ball: new_ball}
   end
 
   def compute_paddle_next_position(%{paddle: paddle, hurt: false} = state) do
@@ -201,20 +190,32 @@ defmodule Breakout.Scene.Home do
   end
 
   defp bricks_hit?(%{bricks: bricks, ball: ball} = state) do
-    new_bricks =
+    {_found, new_bricks} =
       bricks
       |> Enum.filter(&(&1.dead != true))
-      |> Enum.map(fn brick ->
-        case ball
-             |> ball_rect()
-             |> intersects?(brick) do
-          true ->
-            %{brick | dead: true}
+      |> Enum.reduce(
+        {false, []},
+        fn
+          brick, {true, acc} ->
+            {true, [brick | acc]}
 
-          _ ->
-            brick
+          brick, {false, acc} ->
+            ball_rect = Utils.circle_to_rect(ball)
+            intersected = Utils.intersects?(ball_rect, brick)
+
+            case intersected do
+              true ->
+                dead_brick =
+                  %{brick | dead: true}
+                  |> IO.inspect(label: "dead brick:")
+
+                {true, [dead_brick | acc]}
+
+              _ ->
+                {false, [brick | acc]}
+            end
         end
-      end)
+      )
 
     %{state | bricks: new_bricks}
   end
@@ -227,17 +228,19 @@ defmodule Breakout.Scene.Home do
           Graph.delete(graph, brick.id)
 
         false ->
-          Graph.modify(
-            acc,
-            brick.id,
-            &rect(&1, {brick.width, brick.height},
-              fill: brick.color,
-              translate: {brick.x, brick.y},
-              id: brick.id
-            )
-          )
+          acc
       end
     end)
+  end
+
+  defp compute_ball_next_position(%{ball: ball} = state) do
+    new_ball =
+      %{ball | x: ball.x + ball.vx, y: ball.y + ball.vy}
+      |> ball_out_of_bounds_x?(ball)
+      |> ball_out_of_bounds_y?(ball)
+      |> IO.inspect(label: "ball next pos:")
+
+    %{state | ball: new_ball}
   end
 
   defp ball_out_of_bounds_x?(%{x: x, radius: radius} = new_ball, prev_ball)
@@ -277,8 +280,8 @@ defmodule Breakout.Scene.Home do
 
   defp paddle_hit?(%{ball: ball, paddle: paddle} = state, prev_ball) do
     case ball
-         |> ball_rect()
-         |> intersects?(paddle) do
+         |> Utils.circle_to_rect()
+         |> Utils.intersects?(paddle) do
       true ->
         new_ball = %{ball | y: prev_ball.y, vy: ball.vy * -1}
         %{state | ball: new_ball}
@@ -286,16 +289,5 @@ defmodule Breakout.Scene.Home do
       _ ->
         state
     end
-  end
-
-  defp ball_rect(%{x: x, y: y, radius: radius, vx: _vx, vy: _vy}) do
-    %{x: x - radius, y: y - radius, width: radius * 2 + 2, height: radius * 2 + 2}
-  end
-
-  defp intersects?(rect1, rect2) do
-    rect1.x < rect2.x + rect2.width and
-      rect1.y < rect2.y + rect2.height and
-      rect1.x + rect1.width > rect2.x and
-      rect1.y + rect1.height > rect2.y
   end
 end
