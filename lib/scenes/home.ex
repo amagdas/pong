@@ -3,11 +3,9 @@ defmodule Breakout.Scene.Home do
   require Logger
 
   alias Scenic.Graph
-  # alias Scenic.ViewPort
 
   import Scenic.Primitives
   import Utils
-  # import Scenic.Components
 
   @width 480
   @height 640
@@ -137,14 +135,6 @@ defmodule Breakout.Scene.Home do
         &circle(&1, @ball.radius, fill: :red, translate: {state.ball.x, state.ball.y}, id: :ball)
       )
       |> Graph.modify(
-        "ball_rect",
-        &rect(&1, {@ball.radius * 2, @ball.radius * 2},
-          translate: {state.ball.x - @ball.radius, state.ball.y - @ball.radius},
-          stroke: {5, :green},
-          id: "ball_rect"
-        )
-      )
-      |> Graph.modify(
         :paddle,
         &rect(&1, {@paddle.width, @paddle.height},
           fill: :white,
@@ -238,7 +228,8 @@ defmodule Breakout.Scene.Home do
       %{ball | x: ball.x + ball.vx, y: ball.y + ball.vy}
       |> ball_out_of_bounds_x?(ball)
       |> ball_out_of_bounds_y?(ball)
-      |> IO.inspect(label: "ball next pos:")
+
+    # |> IO.inspect(label: "ball next pos:")
 
     %{state | ball: new_ball}
   end

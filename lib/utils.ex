@@ -9,4 +9,11 @@ defmodule Utils do
   def circle_to_rect(%{x: x, y: y, radius: radius}) do
     %{x: x - radius, y: y - radius, width: radius * 2 + 2, height: radius * 2 + 2}
   end
+
+  # def intersection(rect1, rect2) do
+  # left = return x(); }
+  # right() const { return x() + width() - 1; }
+  # top() const { return y(); }
+  # bottom() const { return y() + height() - 1; }
+  # end
 end
