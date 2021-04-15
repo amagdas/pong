@@ -175,34 +175,41 @@ defmodule Breakout.Scene.Home do
   end
 
   defp bricks_hit?(%{bricks: bricks, ball: ball} = state) do
-    {_found, new_bricks} =
+    result =
       bricks
       |> Enum.filter(&(&1.dead != true))
       |> Enum.reduce(
-        {false, []},
+        {false, [], nil},
         fn
-          brick, {true, acc} ->
-            {true, [brick | acc]}
+          brick, {true, acc, b} ->
+            {true, [brick | acc], b}
 
-          brick, {false, acc} ->
+          brick, {false, acc, nil} ->
             ball_rect = Ball.to_rect(ball)
-            intersected = Rect.intersects?(ball_rect, Brick.rect(brick))
+            intersection = Rect.intersection(ball_rect, Brick.rect(brick))
 
-            case intersected do
-              true ->
+            case intersection do
+              nil ->
+                {false, [brick | acc], nil}
+
+              _ ->
                 dead_brick =
                   %{brick | dead: true}
                   |> IO.inspect(label: "dead brick:")
 
-                {true, [dead_brick | acc]}
-
-              _ ->
-                {false, [brick | acc]}
+                new_ball_pos = Ball.deflect(ball, intersection)
+                {true, [dead_brick | acc], new_ball_pos}
             end
         end
       )
 
-    %{state | bricks: new_bricks}
+    case result do
+      {true, new_bricks, new_ball} ->
+        %{state | bricks: new_bricks, ball: new_ball}
+
+      {false, _, _} ->
+        state
+    end
   end
 
   defp render_bricks(graph, bricks) do

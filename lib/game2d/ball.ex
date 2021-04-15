@@ -19,6 +19,14 @@ defmodule Breakout.Game2D.Ball do
     Circle.to_rect(ball.circle)
   end
 
+  def deflect(%__MODULE__{} = ball, %Rect{width: width, height: height}) do
+    if width < height do
+      %__MODULE__{ball | vx: ball.vx * -1}
+    else
+      %__MODULE__{ball | vy: ball.vy * -1}
+    end
+  end
+
   def paddle_hit?(%__MODULE__{} = ball, %Rect{} = paddle_rect, %__MODULE__{} = prev_ball) do
     case to_rect(ball)
          |> Rect.intersects?(paddle_rect) do
@@ -35,11 +43,11 @@ defmodule Breakout.Game2D.Ball do
     next_pos = %{ball.circle | x: ball.circle.x + ball.vx, y: ball.circle.y + ball.vy}
 
     %{ball | circle: next_pos}
-    |> ball_out_of_bounds_x?(ball, viewport_width)
-    |> ball_out_of_bounds_y?(ball)
+    |> out_of_bounds_x?(ball, viewport_width)
+    |> out_of_bounds_y?(ball)
   end
 
-  defp ball_out_of_bounds_x?(
+  defp out_of_bounds_x?(
          %__MODULE__{circle: %Circle{x: x, radius: radius}} = ball,
          %__MODULE__{} = prev_ball,
          viewport_width
@@ -49,9 +57,9 @@ defmodule Breakout.Game2D.Ball do
     %{ball | circle: next_pos, vx: ball.vx * -1}
   end
 
-  defp ball_out_of_bounds_x?(new_ball, _prev_ball, _viewport_width), do: new_ball
+  defp out_of_bounds_x?(new_ball, _prev_ball, _viewport_width), do: new_ball
 
-  defp ball_out_of_bounds_y?(
+  defp out_of_bounds_y?(
          %__MODULE__{circle: %Circle{y: y, radius: radius}} = ball,
          prev_ball
        )
@@ -60,5 +68,5 @@ defmodule Breakout.Game2D.Ball do
     %{ball | circle: next_pos, vy: ball.vy * -1}
   end
 
-  defp ball_out_of_bounds_y?(new_ball, _prev_ball), do: new_ball
+  defp out_of_bounds_y?(new_ball, _prev_ball), do: new_ball
 end
