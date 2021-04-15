@@ -5,21 +5,19 @@ defmodule Breakout.Scene.Home do
   alias Scenic.Graph
 
   import Scenic.Primitives
-  import Utils
+  alias Breakout.Game2D.{Ball, Paddle, Brick, Rect}
 
   @width 480
   @height 640
   @ball_speed 3
-  @ball %{x: @width / 2, y: @height / 2, radius: 8, vx: @ball_speed, vy: @ball_speed}
-  @paddle %{
-    x: @width / 2 - 40,
-    y: @height - 18,
-    width: 80,
-    height: 16,
-    speed: 5,
-    moving_right: false,
-    moving_left: false
-  }
+  @ball Ball.new(x: @width / 2, y: @height / 2, radius: 8, vx: @ball_speed, vy: @ball_speed)
+  @paddle Paddle.new(
+            x: @width / 2 - 40,
+            y: @height - 18,
+            width: 80,
+            height: 16,
+            speed: 5
+          )
   @frame_ms 32
   @brick_colors [:red, :blue, :dark_green, :brown, :yellow, :grey, :magenta, :cyan]
   @brick_width 40
@@ -31,10 +29,14 @@ defmodule Breakout.Scene.Home do
   @graph Graph.build()
          |> add_specs_to_graph([
            rect_spec({@width, @height}),
-           circle_spec(@ball.radius, fill: :red, translate: {@ball.x, @ball.y}, id: :ball),
-           rect_spec({@paddle.width, @paddle.height},
+           circle_spec(Ball.radius(@ball),
+             fill: :red,
+             translate: Ball.translate(@ball),
+             id: :ball
+           ),
+           rect_spec(Paddle.dimensions(@paddle),
              fill: :white,
-             translate: {@paddle.x, @paddle.y},
+             translate: Paddle.translate(@paddle),
              id: :paddle
            )
          ])
@@ -45,24 +47,24 @@ defmodule Breakout.Scene.Home do
     bricks =
       for row <- 0..7,
           column <- 0..9,
-          do: %{
-            color: Enum.at(@brick_colors, row),
-            width: @brick_width,
-            height: @brick_height,
-            x: @bricks_left_offset + column * @brick_width + column * @brick_spacing,
-            y: @bricks_top_offset + row * @brick_height + row * @brick_spacing,
-            dead: false,
-            id: "brick_#{row}#{column}"
-          }
+          do:
+            Brick.new(
+              id: "brick_#{row}#{column}",
+              x: @bricks_left_offset + column * @brick_width + column * @brick_spacing,
+              y: @bricks_top_offset + row * @brick_height + row * @brick_spacing,
+              width: @brick_width,
+              height: @brick_height,
+              color: Enum.at(@brick_colors, row)
+            )
 
     new_graph =
       @graph
       |> add_specs_to_graph(
         bricks
         |> Enum.map(fn brick ->
-          rect_spec({brick.width, brick.height},
+          rect_spec(Brick.dimensions(brick),
             fill: brick.color,
-            translate: {brick.x, brick.y},
+            translate: Brick.translate(brick),
             id: brick.id
           )
         end)
@@ -85,7 +87,7 @@ defmodule Breakout.Scene.Home do
 
   def handle_input({:key, {key, type, _intensity}}, _context, state)
       when type in [:press, :release, :repeat] do
-    new_paddle = should_move_paddle(key, state.paddle)
+    new_paddle = Paddle.should_move_paddle?(key, state.paddle)
     new_state = %{state | paddle: new_paddle}
     {:noreply, new_state}
   end
@@ -108,18 +110,7 @@ defmodule Breakout.Scene.Home do
   end
 
   def compute_paddle_next_position(%{paddle: paddle, hurt: false} = state) do
-    new_paddle =
-      cond do
-        paddle.moving_left ->
-          %{paddle | x: max(0, paddle.x - paddle.speed)}
-
-        paddle.moving_right ->
-          %{paddle | x: min(@width - paddle.width, paddle.x + paddle.speed)}
-
-        true ->
-          paddle
-      end
-
+    new_paddle = Paddle.compute_next_position(paddle, state.width)
     %{state | paddle: new_paddle}
   end
 
@@ -132,13 +123,17 @@ defmodule Breakout.Scene.Home do
       state.graph
       |> Graph.modify(
         :ball,
-        &circle(&1, @ball.radius, fill: :red, translate: {state.ball.x, state.ball.y}, id: :ball)
+        &circle(&1, Ball.radius(state.ball),
+          fill: :red,
+          translate: Ball.translate(state.ball),
+          id: :ball
+        )
       )
       |> Graph.modify(
         :paddle,
-        &rect(&1, {@paddle.width, @paddle.height},
+        &rect(&1, Paddle.dimensions(state.paddle),
           fill: :white,
-          translate: {state.paddle.x, state.paddle.y},
+          translate: Paddle.translate(state.paddle),
           id: :paddle
         )
       )
@@ -159,13 +154,13 @@ defmodule Breakout.Scene.Home do
       state.graph
       |> Graph.modify(
         :ball,
-        &circle(&1, @ball.radius, fill: :red, translate: {@ball.x, @ball.y}, id: :ball)
+        &circle(&1, Ball.radius(@ball), fill: :red, translate: Ball.translate(@ball), id: :ball)
       )
       |> Graph.modify(
         :paddle,
-        &rect(&1, {@paddle.width, @paddle.height},
+        &rect(&1, Paddle.dimensions(@paddle),
           fill: :white,
-          translate: {@paddle.x, @paddle.y},
+          translate: Paddle.translate(@paddle),
           id: :paddle
         )
       )
@@ -190,8 +185,8 @@ defmodule Breakout.Scene.Home do
             {true, [brick | acc]}
 
           brick, {false, acc} ->
-            ball_rect = Utils.circle_to_rect(ball)
-            intersected = Utils.intersects?(ball_rect, brick)
+            ball_rect = Ball.to_rect(ball)
+            intersected = Rect.intersects?(ball_rect, Brick.rect(brick))
 
             case intersected do
               true ->
@@ -224,29 +219,9 @@ defmodule Breakout.Scene.Home do
   end
 
   defp compute_ball_next_position(%{ball: ball} = state) do
-    new_ball =
-      %{ball | x: ball.x + ball.vx, y: ball.y + ball.vy}
-      |> ball_out_of_bounds_x?(ball)
-      |> ball_out_of_bounds_y?(ball)
-
-    # |> IO.inspect(label: "ball next pos:")
-
+    new_ball = Ball.compute_next_position(ball, state.width)
     %{state | ball: new_ball}
   end
-
-  defp ball_out_of_bounds_x?(%{x: x, radius: radius} = new_ball, prev_ball)
-       when x < radius or x > @width - radius do
-    %{new_ball | x: prev_ball.x, vx: new_ball.vx * -1}
-  end
-
-  defp ball_out_of_bounds_x?(new_ball, _prev_ball), do: new_ball
-
-  defp ball_out_of_bounds_y?(%{y: y, radius: radius} = new_ball, prev_ball)
-       when y < radius do
-    %{new_ball | y: prev_ball.y, vy: new_ball.vy * -1}
-  end
-
-  defp ball_out_of_bounds_y?(new_ball, _prev_ball), do: new_ball
 
   defp hurt?(%{ball: %{y: y, radius: radius}, lives: lives} = state)
        when y > @height - radius do
@@ -256,29 +231,8 @@ defmodule Breakout.Scene.Home do
 
   defp hurt?(state), do: state
 
-  defp should_move_paddle(key, paddle) do
-    case key do
-      "left" ->
-        %{paddle | moving_left: true, moving_right: false}
-
-      "right" ->
-        %{paddle | moving_right: true, moving_left: false}
-
-      _ ->
-        paddle
-    end
-  end
-
   defp paddle_hit?(%{ball: ball, paddle: paddle} = state, prev_ball) do
-    case ball
-         |> Utils.circle_to_rect()
-         |> Utils.intersects?(paddle) do
-      true ->
-        new_ball = %{ball | y: prev_ball.y, vy: ball.vy * -1}
-        %{state | ball: new_ball}
-
-      _ ->
-        state
-    end
+    new_ball = Ball.paddle_hit?(ball, Paddle.rect(paddle), prev_ball)
+    %{state | ball: new_ball}
   end
 end
