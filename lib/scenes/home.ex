@@ -9,7 +9,7 @@ defmodule Breakout.Scene.Home do
 
   @width 480
   @height 640
-  @ball_speed 3
+  @ball_speed 5
   @ball Ball.new(x: @width / 2, y: @height / 2, radius: 8, vx: @ball_speed, vy: @ball_speed)
   @paddle Paddle.new(
             x: @width / 2 - 40,
@@ -116,6 +116,10 @@ defmodule Breakout.Scene.Home do
 
   def compute_paddle_next_position(state) do
     state
+  end
+
+  defp render_next_frame(%{hurt: false, bricks: []} = state) do
+    # TODO: You Win
   end
 
   defp render_next_frame(%{hurt: false, bricks: bricks} = state) do
@@ -230,13 +234,16 @@ defmodule Breakout.Scene.Home do
     %{state | ball: new_ball}
   end
 
-  defp hurt?(%{ball: %{y: y, radius: radius}, lives: lives} = state)
-       when y > @height - radius do
-    new_lives = lives - 1
-    %{state | hurt: true, lives: new_lives}
-  end
+  defp hurt?(%{ball: ball, lives: lives} = state) do
+    case Ball.hurt?(ball, state.height) do
+      true ->
+        new_lives = lives - 1
+        %{state | hurt: true, lives: new_lives}
 
-  defp hurt?(state), do: state
+      false ->
+        state
+    end
+  end
 
   defp paddle_hit?(%{ball: ball, paddle: paddle} = state, prev_ball) do
     new_ball = Ball.paddle_hit?(ball, Paddle.rect(paddle), prev_ball)

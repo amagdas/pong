@@ -27,6 +27,16 @@ defmodule Breakout.Game2D.Ball do
     end
   end
 
+  def hurt?(%__MODULE__{} = ball, viewport_height) do
+    cond do
+      ball.circle.y > viewport_height - ball.circle.radius ->
+        true
+
+      true ->
+        false
+    end
+  end
+
   def paddle_hit?(%__MODULE__{} = ball, %Rect{} = paddle_rect, %__MODULE__{} = prev_ball) do
     case to_rect(ball)
          |> Rect.intersects?(paddle_rect) do
