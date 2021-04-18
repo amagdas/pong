@@ -7,9 +7,10 @@ defmodule Breakout.Scene.Home do
   import Scenic.Primitives
   alias Breakout.Game2D.{Ball, Paddle, Brick, Rect}
 
+  @points_per_hit 10
   @width 480
   @height 640
-  @ball_speed 5
+  @ball_speed 4
   @ball Ball.new(x: @width / 2, y: @height / 2, radius: 8, vx: @ball_speed, vy: @ball_speed)
   @paddle Paddle.new(
             x: @width / 2 - 40,
@@ -29,6 +30,17 @@ defmodule Breakout.Scene.Home do
   @graph Graph.build()
          |> add_specs_to_graph([
            rect_spec({@width, @height}),
+           text_spec("Score: ",
+             font: :roboto_mono,
+             font_size: 46,
+             translate: {25, @bricks_left_offset + 10}
+           ),
+           text_spec("0",
+             font: :roboto_mono,
+             font_size: 46,
+             translate: {155, @bricks_left_offset + 10},
+             id: "score"
+           ),
            circle_spec(Ball.radius(@ball),
              fill: :red,
              translate: Ball.translate(@ball),
@@ -79,7 +91,8 @@ defmodule Breakout.Scene.Home do
       bricks: bricks,
       frame_time: timer,
       lives: 3,
-      hurt: false
+      hurt: false,
+      score: 0
     }
 
     {:ok, state, push: @graph}
@@ -122,9 +135,18 @@ defmodule Breakout.Scene.Home do
     # TODO: You Win
   end
 
-  defp render_next_frame(%{hurt: false, bricks: bricks} = state) do
+  defp render_next_frame(%{hurt: false, bricks: bricks, score: score} = state) do
     graph =
       state.graph
+      |> Graph.modify(
+        "score",
+        &text(&1, Integer.to_string(score),
+          font: :roboto_mono,
+          font_size: 46,
+          translate: {155, @bricks_left_offset + 10},
+          id: "score"
+        )
+      )
       |> Graph.modify(
         :ball,
         &circle(&1, Ball.radius(state.ball),
@@ -178,7 +200,7 @@ defmodule Breakout.Scene.Home do
     }
   end
 
-  defp bricks_hit?(%{bricks: bricks, ball: ball} = state) do
+  defp bricks_hit?(%{bricks: bricks, ball: ball, score: score} = state) do
     result =
       bricks
       |> Enum.filter(&(&1.dead != true))
@@ -197,9 +219,7 @@ defmodule Breakout.Scene.Home do
                 {false, [brick | acc], nil}
 
               _ ->
-                dead_brick =
-                  %{brick | dead: true}
-                  |> IO.inspect(label: "dead brick:")
+                dead_brick = %{brick | dead: true}
 
                 new_ball_pos = Ball.deflect(ball, intersection)
                 {true, [dead_brick | acc], new_ball_pos}
@@ -209,7 +229,7 @@ defmodule Breakout.Scene.Home do
 
     case result do
       {true, new_bricks, new_ball} ->
-        %{state | bricks: new_bricks, ball: new_ball}
+        %{state | bricks: new_bricks, ball: new_ball, score: score + @points_per_hit}
 
       {false, _, _} ->
         state
