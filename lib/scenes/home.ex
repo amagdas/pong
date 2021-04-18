@@ -50,6 +50,14 @@ defmodule Breakout.Scene.Home do
              fill: :white,
              translate: Paddle.translate(@paddle),
              id: :paddle
+           ),
+           text_spec("YOU WIN!!!",
+             font: :roboto_mono,
+             font_size: 46,
+             scale: 1.5,
+             translate: {100, @height / 2 - 10},
+             hidden: true,
+             id: "win"
            )
          ])
 
@@ -92,7 +100,8 @@ defmodule Breakout.Scene.Home do
       frame_time: timer,
       lives: 3,
       hurt: false,
-      score: 0
+      score: 0,
+      timer: timer
     }
 
     {:ok, state, push: @graph}
@@ -132,7 +141,23 @@ defmodule Breakout.Scene.Home do
   end
 
   defp render_next_frame(%{hurt: false, bricks: []} = state) do
-    # TODO: You Win
+    new_graph =
+      state.graph
+      |> Graph.modify(
+        "win",
+        &text(&1, "YOU WIN!!!",
+          font: :roboto_mono,
+          font_size: 46,
+          scale: 1.5,
+          hidden: false,
+          translate: {100, @height / 2 - 10},
+          id: "win"
+        )
+      )
+
+    {:ok, :cancel} = :timer.cancel(state.timer)
+
+    %{state | graph: new_graph, timer: nil}
   end
 
   defp render_next_frame(%{hurt: false, bricks: bricks, score: score} = state) do
