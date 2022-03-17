@@ -13,7 +13,7 @@ defmodule Breakout.Game2D.Brick do
     }
   end
 
-  def translate(%__MODULE__{} = brick) do
+  def position(%__MODULE__{} = brick) do
     {brick.rect.x, brick.rect.y}
   end
 
@@ -23,6 +23,8 @@ defmodule Breakout.Game2D.Brick do
 
   def id(%__MODULE__{} = brick), do: brick.id
   def rect(%__MODULE__{} = brick), do: brick.rect
-  def dead(%__MODULE__{} = brick), do: brick.dead
   def color(%__MODULE__{} = brick), do: brick.color
+  def dead?(%__MODULE__{} = brick), do: brick.dead
+  def kill(%__MODULE__{} = brick), do: %{brick | dead: true}
+  def alive?(%__MODULE__{} = brick), do: brick.dead == false
 end

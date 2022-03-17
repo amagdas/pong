@@ -9,6 +9,7 @@ defmodule Breakout do
 
     # start the application with the viewport
     children = [
+      {DynamicSupervisor, strategy: :one_for_one, name: Breakout.DynamicSupervisor},
       {Scenic, viewports: [main_viewport_config]}
     ]
 

@@ -5,7 +5,7 @@ defmodule Breakout.Scene.Home do
   alias Scenic.Graph
 
   import Scenic.Primitives
-  alias Breakout.Game2D.{Ball, Paddle, Brick, Rect}
+  alias Breakout.Game2D.{Ball, Paddle, BrickActor}
 
   @points_per_hit 10
   @width 480
@@ -68,7 +68,7 @@ defmodule Breakout.Scene.Home do
       for row <- 0..7,
           column <- 0..9,
           do:
-            Brick.new(
+            BrickActor.new(
               id: "brick_#{row}#{column}",
               x: @bricks_left_offset + column * @brick_width + column * @brick_spacing,
               y: @bricks_top_offset + row * @brick_height + row * @brick_spacing,
@@ -82,11 +82,8 @@ defmodule Breakout.Scene.Home do
       |> add_specs_to_graph(
         bricks
         |> Enum.map(fn brick ->
-          rect_spec(Brick.dimensions(brick),
-            fill: brick.color,
-            translate: Brick.translate(brick),
-            id: brick.id
-          )
+          {dims, options} = BrickActor.rect_spec(brick)
+          rect_spec(dims, options)
         end)
       )
 
@@ -188,13 +185,13 @@ defmodule Breakout.Scene.Home do
           id: :paddle
         )
       )
-      |> render_bricks(bricks)
+      |> clean_dead_bricks(bricks)
 
     %{state | graph: graph}
   end
 
   defp render_next_frame(%{hurt: true} = state) do
-    Logger.info("Lost a life!!! #{inspect(state.lives)}")
+    # Logger.info("Lost a life!!! #{inspect(state.lives)}")
 
     state
     |> reset()
@@ -228,7 +225,7 @@ defmodule Breakout.Scene.Home do
   defp bricks_hit?(%{bricks: bricks, ball: ball, score: score} = state) do
     result =
       bricks
-      |> Enum.filter(&(&1.dead != true))
+      |> Enum.filter(&BrickActor.active?(&1))
       |> Enum.reduce(
         {false, [], nil},
         fn
@@ -237,17 +234,15 @@ defmodule Breakout.Scene.Home do
 
           brick, {false, acc, nil} ->
             ball_rect = Ball.to_rect(ball)
-            intersection = Rect.intersection(ball_rect, Brick.rect(brick))
 
-            case intersection do
+            # collides?
+            case BrickActor.collides?(brick, ball_rect) do
               nil ->
                 {false, [brick | acc], nil}
 
-              _ ->
-                dead_brick = %{brick | dead: true}
-
+              intersection ->
                 new_ball_pos = Ball.deflect(ball, intersection)
-                {true, [dead_brick | acc], new_ball_pos}
+                {true, [brick | acc], new_ball_pos}
             end
         end
       )
@@ -261,12 +256,15 @@ defmodule Breakout.Scene.Home do
     end
   end
 
-  defp render_bricks(graph, bricks) do
+  defp clean_dead_bricks(graph, bricks) do
     bricks
     |> Enum.reduce(graph, fn brick, acc ->
-      case brick.dead do
-        true ->
-          Graph.delete(graph, brick.id)
+      case BrickActor.alive?(brick) do
+        {_id, true} ->
+          acc
+
+        {brick_id, false} ->
+          Graph.delete(graph, brick_id)
 
         false ->
           acc
